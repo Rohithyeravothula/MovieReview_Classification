@@ -1,0 +1,1 @@
+multinomial vs binary naive bias algorithm
