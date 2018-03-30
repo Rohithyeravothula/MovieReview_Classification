@@ -2,6 +2,7 @@ from util import *
 from collections import Counter, defaultdict
 import json
 import math
+from operator import add
 
 """
 each classification will be of type
@@ -13,6 +14,7 @@ ASSIGNMENT_CLASSES = BINARY_AUTH_CLASS_GROUP + BINARY_SENT_CLASS_GROUP
 
 class NaiveBayesModel:
     def __init__(self, classes=None):
+        self.unknown_word_prob = {}
         if classes is None:
             classes = ASSIGNMENT_CLASSES
         self.counter = {}
@@ -80,9 +82,11 @@ class NaiveBayesModel:
                 self.class_prior_prob[cls] = math.log10(confidence)
 
     def compute_model(self):
+        self.remove_top_words(0) # number of words to remove
         self.add_one_smoothing()
         self.compute_feature_probabilities()
         self.compute_prior_probabilities()
+        self.smooth_unknown_words()
 
     def get_class_confidence(self, input_text):
         features = get_word_features(input_text)
@@ -93,7 +97,7 @@ class NaiveBayesModel:
                 if word in self.probabilities:
                     confidence += self.probabilities[word][index]
                 else:
-                    "handle unknown words"
+                    confidence += self.unknown_word_prob[cls]
             class_confidence[cls] = confidence
         return class_confidence
 
@@ -101,6 +105,37 @@ class NaiveBayesModel:
         for word in self.counter:
             for i in range(0, len(self.classes)):
                 self.counter[word][i] += 1
+
+    def smooth_unknown_words(self):
+        low_frequent_words = [0]*len(self.classes)
+        for word in self.counter:
+            if sum(self.counter[word]) < 10:
+                low_frequent_words = list(map(add, low_frequent_words, self.counter[word]))
+
+        total = sum(low_frequent_words)
+        print(low_frequent_words)
+        for cls, index in self.class_indices.items():
+            if low_frequent_words[index]:
+                self.unknown_word_prob[cls] = math.log(low_frequent_words[index]/total)
+            else:
+                self.unknown_word_prob[cls] = 0
+
+    def remove_top_words(self, limit):
+        all_words = list(self.counter.items())
+        all_words.sort(key = lambda item: sum(item[1]), reverse=True)
+        top_words = all_words[:limit+1]
+        for (word, _) in top_words:
+            del self.counter[word]
+
+
+
+
+
+
+
+
+
+
 
 
 def build_model(train_data):
@@ -152,13 +187,16 @@ def nb_dev_test(model):
     dev_key = read_dev_key_data()
     dev_gold = []
     prediction = []
+    output_predictions = []
     for (review_id, review_text) in dev_data:
         auth_class, sent_class = nb_predict(model, review_text)
         prediction.append([auth_class, sent_class])
         dev_gold.append(dev_key[review_id])
+        output_predictions.append([review_id, auth_class, sent_class])
     # print(prediction)
     # print(list(map(lambda x: [x[1], x[2]], dev_key)))
     helper(prediction, dev_gold)
+    write_predictions(output_predictions)
 
 def helper(predictions, gold_key):
     """lol logic, be careful with this"""
