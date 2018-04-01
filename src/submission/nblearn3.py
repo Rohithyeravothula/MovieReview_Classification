@@ -1,10 +1,9 @@
-from util import *
 from collections import Counter, defaultdict
 import json
 import math
 from operator import add
 import sys
-
+import os
 
 """
 each classification will be of type
@@ -14,6 +13,190 @@ BINARY_AUTH_CLASS_GROUP = ["True", "Fake"]
 BINARY_SENT_CLASS_GROUP = ["Pos", "Neg"]
 ASSIGNMENT_CLASSES = BINARY_AUTH_CLASS_GROUP + BINARY_SENT_CLASS_GROUP
 
+
+
+
+from typing import List, Dict, Set, Tuple
+import string
+
+train_data_filename = "../data/train-labeled.txt"
+# train_data_filename = "../data/sample-train-labeled.txt"
+
+dev_data_filename = "../data/dev-text.txt"
+dev_data_key_filename = "../data/dev-key.txt"
+
+nbmodel_filename = "nbmodel.txt"
+output_filename = "nboutput.txt"
+
+
+
+stop_words = {'i', 'or', 'besides', 'six', 'whom', 'either', 'being', 'when', 'always', 'even',
+              'amongst', 'on', 'all', 'over', 'eight', 'back', 'has', 'have', 'less', 'ourselves',
+              'a', 'about', 'my', 'seems', 'until', 'keep', 'toward', 'anyway', 'to', 'around',
+              'beforehand', 'cannot', 'could', 'does', 'had', 'somehow', 'thus', 'am', 'if',
+              'their', 'front', 'who', 'once', 'put', 'is', 'some', 'under', 'whole', 'well',
+              'beyond', 'often', 'onto', 'see', 'sometimes', 'by', 'forty', 'fifteen', 'part',
+              'everyone', 'than', 'these', 'can', 'twelve', 'another', 'been', 'next', 'same',
+              'seeming', 'further', 'used', 'might', 'become', 'himself', 'our', 'twenty', 'ours',
+              'us', 'thereafter', 'else', 'few', 'after', 'therefore', 'was', 'various', 'move',
+              'several', 'elsewhere', 'would', 'among', 'so', 'nor', 'this', 'becoming', 'yourself',
+              'each', 'also', 'mine', 'everything', 'for', 'done', 'empty', 'per', 'whereafter',
+              'please', 'together', 'then', 'unless', 'full', 'however', 'give', 'no', 'below',
+              'since', 'whereby', 'already', 'that', 'must', 'between', 'seemed', 'hereupon',
+              'because', 'down', 'every', 'made', 'as', 'thru', 'neither', 'least', 'wherein',
+              'both', 'here', 'and', 'indeed', 'therein', 'bottom', 'throughout', 'yourselves',
+              'regarding', 'ca', 'ever', 'call', 'somewhere', 'there', 'whoever', 'whence', 'in',
+              'serious', 'such', 'latterly', 'last', 'only', 'top', 'against', 'out', 'name',
+              'much', 'along', 'herein', 'from', 'hers', 'two', 'into', 'while', 'without',
+              'whether', 'became', 'anyhow', 'where', 'within', 'enough', 'hereby', 'four', 'very',
+              'whatever', 'myself', 'again', 'alone', 'yours', 'should', 'them', 'nobody', 'nine',
+              'nevertheless', 'three', 'up', 'moreover', 'why', 'afterwards', 'not', 'his',
+              'sometime', 'first', 'never', 'go', 'otherwise', 'third', 'via', 'will', 'herself',
+              'at', 'becomes', 'before', 'him', 'themselves', 'amount', 'your', 'did', 'are',
+              'what', 'more', 'namely', 'perhaps', 'whenever', 'do', 'hereafter', 'just',
+              'thereupon', 'too', 'anywhere', 'you', 'be', 'sixty', 'most', 'behind', 'mostly',
+              'other', 'something', 'during', 'meanwhile', 'seem', 'though', 'although', 'latter',
+              'get', 'anyone', 'itself', 'they', 'of', 'take', 'show', 'whither', 'none', 'yet',
+              'she', 'wherever', 'ten', 'upon', 'beside', 'an', 'any', 'but', 'make', 'hence',
+              'off', 'one', 'own', 'rather', 'someone', 'using', 'it', 'anything', 'may', 'others',
+              'nothing', 'really', 'we', 'due', 'me', 'whose', 'everywhere', 're', 'former',
+              'fifty', 'above', 'say', 'the', 'doing', 'still', 'thence', 'eleven', 'five', 'her',
+              'quite', 'thereby', 'whereupon', 'many', 'almost', 'except', 'hundred', 'nowhere',
+              'whereas', 'none', 'with', 'across', 'which', 'those', 'towards', 'how', 'side',
+              'he', 'were', 'its', 'formerly', 'now', 'through'}
+
+
+def pprint(collection):
+    if isinstance(collection, dict):
+        for line in collection.items():
+            print(line)
+
+    for line in collection:
+        print(line)
+
+
+def break_train_data_line(text):
+    if not text:
+        return None
+    split = text.split(" ")
+    review_id, authenticity, sentiment = split[:3]
+    review_text = " ".join(split[3:])
+    return [review_id, review_text, authenticity, sentiment]
+
+def break_test_data_line(text: str):
+    if not text:
+        return None
+    review_id, *review_text = text.split(" ")
+    return review_id, " ".join(review_text)
+
+
+def read_train_data(filename: str) -> List[List[str]]:
+    train_data = []
+    fp = open(filename, 'r')
+    for text_line in fp.read().splitlines():
+        train_data.append(break_train_data_line(text_line))
+    fp.close()
+    return train_data
+
+
+def read_test_data(filename):
+    fp = open(filename, 'r')
+    test_data = []
+    for line in fp.read().splitlines():
+        test_data.append(break_test_data_line(line))
+    fp.close()
+    return test_data
+
+
+def read_dev_data(filename: str) -> List[Tuple[str, str]]:
+    dev_data = []
+    fp = open(filename, 'r')
+    for line in fp.read().splitlines():
+        review_id, *review_text = line.split(" ")
+        dev_data.append((review_id, " ".join(review_text)))
+    fp.close()
+    return dev_data
+
+
+def read_dev_key_data(filename) -> Dict[str, Tuple[str, str]]:
+    fp = open(filename)
+    dev_key_map = {}
+    for line in fp.read().splitlines():
+        review_id, authentic, sentiment = line.split(" ")
+        dev_key_map[review_id] = (authentic, sentiment)
+    fp.close()
+    return dev_key_map
+
+
+def write_predictions(predictions, filename):
+    buffer = []
+    for (review_id, auth, sent) in predictions:
+        buffer.append(" ".join([review_id, auth, sent]))
+
+    with open(filename, 'w') as fp:
+        fp.write("\n".join(buffer))
+
+
+def get_clean_text(text: str) -> str:
+    """
+    remove stop words, pronouns, convert case
+    :return:
+    """
+    unigrams = text.split(" ")
+    return " ".join(word.strip().lower() for word in unigrams if word not in stop_words)
+
+
+
+# def remove_punctuations(text: str) -> str:
+#     symbols = {"?"}
+#     unigrams = text.split(" ")
+#     clean = []
+#     for word in unigrams:
+#         clean_word = "".join(letter for letter in list(word) if letter not in symbols)
+#         if clean_word not in stop_words:
+#             clean.append(clean_word)
+#
+#     return " ".join(clean)
+
+def identify_negations(text):
+    """
+    identifies negations in text, replaces "not good" with "not_good"
+    :param text: lower case representation of text
+    :return:
+    """
+    negation = False
+    unigrams = text.split(" ")
+    words = []
+    for word in unigrams:
+        if negation:
+            words.append("not_{}".format(word))
+        elif word.lower() in {"not", "n't"}:
+            negation = not negation
+        elif len(set(word).intersection(set(string.punctuation))) > 0:
+            negation = False
+    return text + " ".join(words)
+
+
+def get_ngrams(text, n):
+    unigrams = text.split(" ")
+    return list(set([" ".join(unigrams[i:i + n]) for i in range(0, len(unigrams))]))
+
+
+def get_sentiment_word_features(text):
+    """
+    return words that are considered to be features
+    """
+    return get_ngrams(get_clean_text(text), 1)
+
+
+def get_authenticity_word_features(text):
+    return get_ngrams(get_clean_text(text), 1)
+
+
+
+
+
+
 class NaiveBayesModel:
     def __init__(self, classes):
         self.unknown_word_prob = {}
@@ -22,7 +205,7 @@ class NaiveBayesModel:
         self.class_indices = self.build_class_index()
         self.probabilities = {}
         self.classes_prior_counts = defaultdict(int)
-        self.class_prior_prob = defaultdict(float)
+        self.class_prior_prob = defaultdict(int)
 
     def __str__(self):
         return self.counter
@@ -76,14 +259,14 @@ class NaiveBayesModel:
                 for classification in self.class_indices}
 
     def compute_feature_probabilities(self):
-        # ToDo: items will not return in order
         classification_freq = self.get_classification_freq()
         for word, counts in self.counter.items():
-            index_probs = []
+            probs = []
             for cls, index in self.class_indices.items():
-                index_probs.append((index, math.log10(counts[index] / classification_freq[cls])))
-            index_probs.sort()
-            self.probabilities[word] = [prob for (index, prob) in index_probs]
+                # probs.append(counts[index])
+                # probs.append(classification_freq[cls])
+                probs.append(math.log10(counts[index] / classification_freq[cls]))
+            self.probabilities[word] = probs
 
     def add_prior(self, cls):
         self.classes_prior_counts[cls] += 1
@@ -105,7 +288,6 @@ class NaiveBayesModel:
 
     def get_class_confidence(self, input_text, feature_function):
         # features = get_word_features(input_text)
-        # ToDo: items willnot result in ordered map
         features = feature_function(input_text)
         class_confidence = {}
         for cls, index in self.class_indices.items():
@@ -130,7 +312,6 @@ class NaiveBayesModel:
                 low_frequent_words = list(map(add, low_frequent_words, self.counter[word]))
 
         total = sum(low_frequent_words)
-        # ToDo: items will not result in ordered pair
         for cls, index in self.class_indices.items():
             if low_frequent_words[index]:
                 self.unknown_word_prob[cls] = math.log(low_frequent_words[index]/total)
@@ -146,28 +327,6 @@ class NaiveBayesModel:
 
 
 
-def build_model(train_data: List[Tuple[str, str]], classes: List[str], feature_function) -> NaiveBayesModel:
-    model = NaiveBayesModel(classes)
-
-    for (review_text, class_name) in train_data:
-        features = Counter(feature_function(review_text))
-        for (feature, freq) in features.items():
-            model.add_feature(feature, freq, class_name)
-        model.add_prior(class_name)
-    model.compute_model()
-    return model
-
-
-def learn(train_data_file: str):
-    train_data = read_train_data(train_data_filename)
-    train_sentiment = [(review_text, sent) for (_, review_text, _, sent) in train_data]
-    train_auth = [(review_text, auth) for (_, review_text, auth, _) in train_data]
-    sent_model = build_model(train_sentiment, BINARY_SENT_CLASS_GROUP, get_sentiment_word_features)
-    auth_model = build_model(train_auth, BINARY_AUTH_CLASS_GROUP, get_authenticity_word_features)
-    return sent_model, auth_model
-
-
-
 def build_sentiment_model(train_data, classes=None):
     """
     returns json of words, and their probabilities
@@ -180,7 +339,7 @@ def build_sentiment_model(train_data, classes=None):
         features = Counter(get_sentiment_word_features(review_text))
         for word, freq in features.items():
             model.add_feature(word, freq, sentiment)
-        model.add_prior(sentiment)
+            model.add_prior(sentiment)
     model.compute_model()
     return model
 
@@ -193,7 +352,7 @@ def build_authenticity_model(train_data, classes=None):
         features = Counter(get_authenticity_word_features(review_text))
         for word, freq in features.items():
             model.add_feature(word, freq, authenticity)
-        model.add_prior(authenticity)
+            model.add_prior(authenticity)
     model.compute_model()
     return model
 
@@ -232,8 +391,8 @@ def get_prediction(cls_confidence, input_classes):
 
 
 def nb_dev_test_sentiment(model: NaiveBayesModel):
-    dev_data = read_dev_data(dev_data_filename)
-    dev_key = read_dev_key_data(dev_data_key_filename)
+    dev_data = read_dev_data()
+    dev_key = read_dev_key_data()
     prediction = []
     gold = []
     for (review_id, review_text) in dev_data:
@@ -247,8 +406,8 @@ def nb_dev_test_sentiment(model: NaiveBayesModel):
 
 
 def nb_dev_test_authenticity(model: NaiveBayesModel):
-    dev_data = read_dev_data(dev_data_filename)
-    dev_key = read_dev_key_data(dev_data_key_filename)
+    dev_data = read_dev_data()
+    dev_key = read_dev_key_data()
     prediction = []
     gold = []
     for (review_id, review_text) in dev_data:
@@ -309,3 +468,9 @@ def get_performance_measure(prediction, dev_gold, cls):
 
 
 
+if __name__ == '__main__':
+    pwd = os.getcwd()
+    train_filename = sys.argv[1]
+    sent_model = nb_learn(train_filename, "sent", BINARY_SENT_CLASS_GROUP)
+    auth_model = nb_learn(train_filename, "auth", BINARY_AUTH_CLASS_GROUP)
+    store_models(os.path.join(pwd, nbmodel_filename), sent_model=sent_model, auth_model=auth_model)
