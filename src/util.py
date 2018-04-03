@@ -128,18 +128,6 @@ def get_clean_text(text: str) -> str:
     return " ".join(word.strip().lower() for word in unigrams if word not in stop_words)
 
 
-
-# def remove_punctuations(text: str) -> str:
-#     symbols = {"?"}
-#     unigrams = text.split(" ")
-#     clean = []
-#     for word in unigrams:
-#         clean_word = "".join(letter for letter in list(word) if letter not in symbols)
-#         if clean_word not in stop_words:
-#             clean.append(clean_word)
-#
-#     return " ".join(clean)
-
 def identify_negations(text):
     """
     identifies negations in text, replaces "not good" with "not_good"

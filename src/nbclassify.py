@@ -1,4 +1,7 @@
-from util import *
+from util import read_train_data, read_test_data, read_dev_key_data, read_dev_data, \
+    get_sentiment_word_features, get_authenticity_word_features, write_predictions, \
+    dev_data_key_filename, dev_data_filename
+from typing import List, Dict, DefaultDict, Set, Tuple
 from collections import Counter, defaultdict
 import json
 import math
@@ -145,6 +148,21 @@ class NaiveBayesModel:
             del self.counter[word]
 
 
+def store_models(filename: str, sent_model: NaiveBayesModel, auth_model: NaiveBayesModel):
+    model = {"sent": sent_model.model_repr(), "auth": auth_model.model_repr()}
+    with open(filename, 'w') as fp:
+        json.dump(model, fp)
+
+
+def read_models(filename: str) -> Tuple[NaiveBayesModel, NaiveBayesModel]:
+    sent_model = NaiveBayesModel(BINARY_SENT_CLASS_GROUP)
+    auth_model = NaiveBayesModel(BINARY_AUTH_CLASS_GROUP)
+    with open(filename, 'r') as fp:
+        model = json.load(fp)
+        sent_model.builder(model["sent"])
+        auth_model.builder(model["auth"])
+        return sent_model, auth_model
+
 
 def build_model(train_data: List[Tuple[str, str]], classes: List[str], feature_function) -> NaiveBayesModel:
     model = NaiveBayesModel(classes)
@@ -158,8 +176,8 @@ def build_model(train_data: List[Tuple[str, str]], classes: List[str], feature_f
     return model
 
 
-def learn(train_data_file: str):
-    train_data = read_train_data(train_data_filename)
+def nb_learn(train_data_file: str):
+    train_data = read_train_data(train_data_file)
     train_sentiment = [(review_text, sent) for (_, review_text, _, sent) in train_data]
     train_auth = [(review_text, auth) for (_, review_text, auth, _) in train_data]
     sent_model = build_model(train_sentiment, BINARY_SENT_CLASS_GROUP, get_sentiment_word_features)
@@ -167,60 +185,18 @@ def learn(train_data_file: str):
     return sent_model, auth_model
 
 
-
-def build_sentiment_model(train_data, classes=None):
-    """
-    returns json of words, and their probabilities
-    { "word":[0,0,0,0]} => contains probabilities of word against each class
-    :param train_data: [review_id, review_text, True/Fake, Pos/Neg]
-    return: NaiveBayesModel, to add probabilities
-    """
-    model = NaiveBayesModel(classes)
-    for (review_id, review_text, authenticity, sentiment) in train_data:
-        features = Counter(get_sentiment_word_features(review_text))
-        for word, freq in features.items():
-            model.add_feature(word, freq, sentiment)
-        model.add_prior(sentiment)
-    model.compute_model()
-    return model
-
-def build_authenticity_model(train_data, classes=None):
-    """
-    refer to build_sentiment_model, very much similar
-    """
-    model = NaiveBayesModel(classes)
-    for (review_id, review_text, authenticity, sentiment) in train_data:
-        features = Counter(get_authenticity_word_features(review_text))
-        for word, freq in features.items():
-            model.add_feature(word, freq, authenticity)
-        model.add_prior(authenticity)
-    model.compute_model()
-    return model
-
-
-def nb_learn(train_filename: str, class_name: str, classes: List[str]=None):
-    train_data = read_train_data(train_filename)
-    if class_name.strip().lower() == "sent":
-        nb_model = build_sentiment_model(train_data, classes)
-    elif class_name.strip().lower() == "auth":
-        nb_model = build_authenticity_model(train_data, classes)
-    else:
-        raise Exception("no model found")
-    # pprint(nb_model.counter)
-    # nb_model.store_model()
-    return nb_model
+def nb_predict(model: NaiveBayesModel, input_text: str, feature_function):
+    cls_confidence = model.get_class_confidence(input_text, feature_function)
+    classification = get_prediction(cls_confidence, model.classes)
+    return classification
 
 
 def nb_predict_sentiment(model: NaiveBayesModel, input_text: str) -> str:
-    cls_confidence = model.get_class_confidence(input_text, get_sentiment_word_features)
-    sent_class = get_prediction(cls_confidence, BINARY_SENT_CLASS_GROUP)
-    return sent_class
+    return nb_predict(model, input_text, get_sentiment_word_features)
 
 
 def nb_predict_authenticity(model: NaiveBayesModel, input_text: str) -> str:
-    cls_confidence = model.get_class_confidence(input_text, get_authenticity_word_features)
-    auth_class = get_prediction(cls_confidence, BINARY_AUTH_CLASS_GROUP)
-    return auth_class
+    return nb_predict(model, input_text, get_authenticity_word_features)
 
 
 def get_prediction(cls_confidence, input_classes):
@@ -269,25 +245,6 @@ def nb_test(filename: str, sent_model: NaiveBayesModel, auth_model: NaiveBayesMo
         auth_class = nb_predict_authenticity(auth_model, review_text)
         predictions.append((review_id, auth_class, sent_class))
     write_predictions(predictions, output_filename)
-
-
-
-def store_models(filename: str, sent_model: NaiveBayesModel, auth_model: NaiveBayesModel):
-    model = {"sent": sent_model.model_repr(), "auth": auth_model.model_repr()}
-    with open(filename, 'w') as fp:
-        json.dump(model, fp)
-
-
-def read_models(filename: str) -> Tuple[NaiveBayesModel, NaiveBayesModel]:
-    sent_model = NaiveBayesModel(BINARY_SENT_CLASS_GROUP)
-    auth_model = NaiveBayesModel(BINARY_AUTH_CLASS_GROUP)
-    with open(filename, 'r') as fp:
-        model = json.load(fp)
-        sent_model.builder(model["sent"])
-        auth_model.builder(model["auth"])
-        return sent_model, auth_model
-
-
 
 
 def get_performance_measure(prediction, dev_gold, cls):
