@@ -10,7 +10,10 @@ dev_data_key_filename = "../data/dev-key.txt"
 nbmodel_filename = "nbmodel.txt"
 output_filename = "nboutput.txt"
 
+full_filename = "../data/full_data.txt"
 
+
+punctuations = set(string.punctuation)
 
 stop_words = {'i', 'or', 'besides', 'six', 'whom', 'either', 'being', 'when', 'always', 'even',
               'amongst', 'on', 'all', 'over', 'eight', 'back', 'has', 'have', 'less', 'ourselves',
@@ -48,13 +51,17 @@ stop_words = {'i', 'or', 'besides', 'six', 'whom', 'either', 'being', 'when', 'a
               'he', 'were', 'its', 'formerly', 'now', 'through'}
 
 
+# stop_words = set(['a', 'able', 'about', 'above', 'across', 'again', "ain't", 'all', 'almost', 'along', 'also', 'am', 'among', 'amongst', 'an', 'and', 'anyhow', 'anyone', 'anyway', 'anyways', 'appear', 'are', 'around', 'as', "a's", 'aside', 'ask', 'asking', 'at', 'away', 'be', 'became', 'because', 'become', 'becomes', 'becoming', 'been', 'before', 'behind', 'below', 'beside', 'besides', 'between', 'beyond', 'both', 'brief', 'but', 'by', 'came', 'can', 'come', 'comes', 'consider', 'considering', 'corresponding', 'could', 'do', 'does', 'doing', 'done', 'down', 'downwards', 'during', 'each', 'edu', 'eg', 'eight', 'either', 'else', 'elsewhere', 'etc', 'even', 'ever', 'every', 'ex', 'few', 'followed', 'following', 'follows', 'for', 'former', 'formerly', 'from', 'further', 'furthermore', 'get', 'gets', 'getting', 'given', 'gives', 'go', 'goes', 'going', 'gone', 'got', 'gotten', 'happens', 'has', 'have', 'having', 'he', 'hed', 'hence', 'her', 'here', 'hereafter', 'hereby', 'herein', "here's", 'hereupon', 'hers', 'herself', "he's", 'hi', 'him', 'himself', 'his', 'how', 'hows', 'i', "i'd", 'ie', 'if', "i'll", "i'm", 'in', 'inc', 'indeed', 'into', 'inward', 'is', 'it', "it'd", "it'll", 'its', "it's", 'itself', "i've", 'keep', 'keeps', 'kept', 'know', 'known', 'knows', 'lately', 'later', 'latter', 'latterly', 'lest', 'let', "let's", 'looking', 'looks', 'ltd', 'may', 'maybe', 'me', 'mean', 'meanwhile', 'might', 'most', 'my', 'myself', 'name', 'namely', 'nd', 'near', 'nearly', 'need', 'needs', 'neither', 'next', 'nine', 'no', 'non', 'now', 'nowhere', 'of', 'off', 'often', 'oh', 'ok', 'okay', 'old', 'on', 'once', 'one', 'ones', 'only', 'onto', 'or', 'other', 'others', 'ought', 'our', 'ours', 'ourselves', 'out', 'over', 'own', 'per', 'placed', 'que', 'quite', 're', 'regarding', 'said', 'same', 'saw', 'say', 'saying', 'says', 'second', 'secondly', 'see', 'seeing', 'seem', 'seemed', 'seeming', 'seems', 'seen', 'self', 'selves', 'sensible', 'sent', 'seven', 'several', 'she', "she'd", "she'll", "she's", 'since', 'six', 'so', 'some', 'somebody', 'somehow', 'someone', 'something', 'sometime', 'sometimes', 'somewhat', 'somewhere', 'soon', 'specified', 'specify', 'specifying', 'still', 'sub', 'such', 'sup', 'sure', 'take', 'taken', 'tell', 'tends', 'th', 'than', 'that', 'thats', "that's", 'the', 'their', 'theirs', 'them', 'themselves', 'then', 'thence', 'there', 'thereafter', 'thereby', 'therefore', 'therein', 'theres', "there's", 'thereupon', 'these', 'they', "they'd", "they'll", "they're", "they've", 'think', 'third', 'this', 'those', 'though', 'three', 'through', 'thru', 'thus', 'to', 'together', 'too', 'took', 'toward', 'towards', 'tried', 'tries', 'truly', 'try', 'trying', "t's", 'twice', 'two', 'un', 'under', 'up', 'upon', 'us', 'use', 'used', 'uses', 'using', 'usually', 'value', 'various', 'very', 'via', 'viz', 'vs', 'want', 'wants', 'was', "wasn't", 'way', 'we', "we'd", "we'll", 'went', 'were', "we're", "weren't", "we've", 'what', 'whatever', "what's", 'when', 'whence', 'whenever', "when's", 'where', 'whereafter', 'whereas', 'whereby', 'wherein', "where's", 'whereupon', 'wherever', 'whether', 'which', 'while', 'whither', 'who', 'whoever', 'whole', 'whom', "who's", 'whose', 'why', "why's", 'will', 'willing', 'wish', 'with', 'within', 'without', "won't", 'would', "wouldn't", 'yes', 'yet', 'you', "you'd", "you'll", 'your', "you're", 'yours', 'yourself', 'yourselves', "you've"])
+
+
+
 def pprint(collection):
     if isinstance(collection, dict):
         for line in collection.items():
             print(line)
-
-    for line in collection:
-        print(line)
+    else:
+        for line in collection:
+            print(line)
 
 
 def break_train_data_line(text):
@@ -124,8 +131,7 @@ def get_clean_text(text: str) -> str:
     remove stop words, pronouns, convert case
     :return:
     """
-    unigrams = text.split(" ")
-    return " ".join(word.strip().lower() for word in unigrams if word not in stop_words)
+
 
 
 def identify_negations(text):
@@ -155,10 +161,41 @@ def get_ngrams(text, n):
 def get_sentiment_word_features(text):
     """
     return words that are considered to be features
+    # no change with removing numeric characters
     """
-    return get_ngrams(get_clean_text(text), 1)
+    unigrams = text.split(" ")
+
+    bigrams = []
+    sentences = text.split(".")
+    for sent in sentences:
+        sent_unigrams = sent.split(" ")
+        for (u1, u2) in zip(sent_unigrams, sent_unigrams[1:]):
+            if u1 not in stop_words and u2 not in stop_words:
+                bigrams.append("{} {}".format(u1, u2))
+
+    stop_less = []
+    for word in unigrams:
+        if word.lower().strip() not in stop_words:
+            stop_less.append(word.lower())
+
+    stop_less = " ".join(stop_less)
+
+    return get_ngrams(stop_less, 1) + bigrams
 
 
 def get_authenticity_word_features(text):
-    return get_ngrams(get_clean_text(text), 1)
+    # using lower case decreases the f1 score
+    # no bigrams as well
+
+    unigrams = text.split(" ")
+    stop_less = []
+    for word in unigrams:
+        if word not in stop_words:
+            stop_less.append(word.lower())
+    stop_less = " ".join(stop_less)
+
+    # stop_less = " ".join(
+    #     word.strip().lower() for word in unigrams if word not in stop_words)
+    return get_ngrams(stop_less, 1)
+
 

@@ -98,9 +98,10 @@ class NaiveBayesModel:
             if confidence:
                 self.class_prior_prob[cls] = math.log10(confidence)
 
-    def compute_model(self):
+    def compute_model(self, frequency_threshold):
         # ToDo: number is hyperparam, test this out
         self.remove_top_words(0)
+        self.remove_low_frequent_words(frequency_threshold)
         self.add_one_smoothing()
         self.compute_feature_probabilities()
         self.compute_prior_probabilities()
@@ -117,7 +118,11 @@ class NaiveBayesModel:
                 if word in self.probabilities:
                     confidence += self.probabilities[word][index]
                 else:
-                    confidence += self.unknown_word_prob[cls]
+                    # add only unigram probability
+                    if len(word.split(" ")) == 1:
+                        confidence += self.unknown_word_prob[cls]
+                    else:
+                        confidence += 0
             class_confidence[cls] = confidence
         return class_confidence
 
@@ -147,6 +152,13 @@ class NaiveBayesModel:
         for (word, _) in top_words:
             del self.counter[word]
 
+    def remove_low_frequent_words(self, frequency):
+        words = list(self.counter.keys())
+        for key in words:
+            if sum(self.counter[key]) < frequency:
+                del self.counter[key]
+
+
 
 def store_models(filename: str, sent_model: NaiveBayesModel, auth_model: NaiveBayesModel):
     model = {"sent": sent_model.model_repr(), "auth": auth_model.model_repr()}
@@ -172,17 +184,23 @@ def build_model(train_data: List[Tuple[str, str]], classes: List[str], feature_f
         for (feature, freq) in features.items():
             model.add_feature(feature, freq, class_name)
         model.add_prior(class_name)
-    model.compute_model()
+    if classes == BINARY_SENT_CLASS_GROUP:
+        model.compute_model(3)
+    elif classes == BINARY_AUTH_CLASS_GROUP:
+        model.compute_model(0)
     return model
 
 
-def nb_learn(train_data_file: str):
-    train_data = read_train_data(train_data_file)
+def nb_learn_data(train_data):
     train_sentiment = [(review_text, sent) for (_, review_text, _, sent) in train_data]
     train_auth = [(review_text, auth) for (_, review_text, auth, _) in train_data]
     sent_model = build_model(train_sentiment, BINARY_SENT_CLASS_GROUP, get_sentiment_word_features)
     auth_model = build_model(train_auth, BINARY_AUTH_CLASS_GROUP, get_authenticity_word_features)
     return sent_model, auth_model
+
+def nb_learn(train_data_file: str):
+    train_data = read_train_data(train_data_file)
+    return nb_learn_data(train_data)
 
 
 def nb_predict(model: NaiveBayesModel, input_text: str, feature_function):
@@ -207,44 +225,56 @@ def get_prediction(cls_confidence, input_classes):
     return input_classes[0]
 
 
-def nb_dev_test_sentiment(model: NaiveBayesModel):
-    dev_data = read_dev_data(dev_data_filename)
-    dev_key = read_dev_key_data(dev_data_key_filename)
+def nb_dev_test_sentiment_data(model: NaiveBayesModel, dev_data, dev_key):
     prediction = []
     gold = []
     for (review_id, review_text) in dev_data:
         sent_class = nb_predict_sentiment(model, review_text)
         prediction.append(sent_class)
         gold.append(dev_key[review_id][1])
-    print(prediction)
-    print(gold)
-    print(get_performance_measure(prediction, gold, "Pos"))
-    print(get_performance_measure(prediction, gold, "Neg"))
+    # print(prediction)
+    # print(gold)
+    # print(get_performance_measure(prediction, gold, "Pos"))
+    # print(get_performance_measure(prediction, gold, "Neg"))
+    return get_performance_measure(prediction, gold, "Pos"), get_performance_measure(prediction, gold, "Neg")
 
 
-def nb_dev_test_authenticity(model: NaiveBayesModel):
+def nb_dev_test_sentiment(model: NaiveBayesModel):
     dev_data = read_dev_data(dev_data_filename)
     dev_key = read_dev_key_data(dev_data_key_filename)
+    return nb_dev_test_sentiment_data(model, dev_data, dev_key)
+
+
+def nb_dev_test_authenticity_data(model: NaiveBayesModel, dev_data, dev_key):
     prediction = []
     gold = []
     for (review_id, review_text) in dev_data:
         auth_class = nb_predict_authenticity(model, review_text)
         prediction.append(auth_class)
         gold.append(dev_key[review_id][0])
-    print(prediction)
-    print(gold)
-    print(get_performance_measure(prediction, gold, "True"))
-    print(get_performance_measure(prediction, gold, "Fake"))
+    # print(prediction)
+    # print(gold)
+    # print(get_performance_measure(prediction, gold, "True"))
+    # print(get_performance_measure(prediction, gold, "Fake"))
+    return get_performance_measure(prediction, gold, "True"), get_performance_measure(prediction, gold, "Fake")
 
 
-def nb_test(filename: str, sent_model: NaiveBayesModel, auth_model: NaiveBayesModel, output_filename: str):
-    test_data = read_test_data(filename)
+def nb_dev_test_authenticity(model: NaiveBayesModel):
+    dev_data = read_dev_data(dev_data_filename)
+    dev_key = read_dev_key_data(dev_data_key_filename)
+    return nb_dev_test_authenticity_data(model, dev_data, dev_key)
+
+def nb_test_data(test_data, sent_model: NaiveBayesModel, auth_model: NaiveBayesModel, output_filename: str):
     predictions = []
     for (review_id, review_text) in test_data:
         sent_class = nb_predict_sentiment(sent_model, review_text)
         auth_class = nb_predict_authenticity(auth_model, review_text)
         predictions.append((review_id, auth_class, sent_class))
     write_predictions(predictions, output_filename)
+
+def nb_test(filename: str, sent_model: NaiveBayesModel, auth_model: NaiveBayesModel, output_filename: str):
+    test_data = read_test_data(filename)
+    nb_test_data(test_data, sent_model, auth_model, output_filename)
 
 
 def get_performance_measure(prediction, dev_gold, cls):
@@ -258,7 +288,7 @@ def get_performance_measure(prediction, dev_gold, cls):
         if pred==cls and pred == gold:
             true_positive+=1
     pos_cls_pred = max(1, pos_cls_pred)
-    print(cls, true_positive, pos_cls_pred, pos_cls_gold)
+    # print(cls, true_positive, pos_cls_pred, pos_cls_gold)
     precision = true_positive/pos_cls_pred
     recall = true_positive/pos_cls_gold
     f1 = 2/((1/precision) + (1/recall))

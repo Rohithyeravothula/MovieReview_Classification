@@ -1,3 +1,4 @@
+from typing import List, Dict, DefaultDict, Set, Tuple
 from collections import Counter, defaultdict
 import json
 import math
@@ -13,6 +14,8 @@ BINARY_AUTH_CLASS_GROUP = ["True", "Fake"]
 BINARY_SENT_CLASS_GROUP = ["Pos", "Neg"]
 ASSIGNMENT_CLASSES = BINARY_AUTH_CLASS_GROUP + BINARY_SENT_CLASS_GROUP
 
+
+
 from typing import List, Dict, Set, Tuple
 import string
 
@@ -26,6 +29,7 @@ nbmodel_filename = "nbmodel.txt"
 output_filename = "nboutput.txt"
 
 
+punctuations = set(string.punctuation)
 
 stop_words = {'i', 'or', 'besides', 'six', 'whom', 'either', 'being', 'when', 'always', 'even',
               'amongst', 'on', 'all', 'over', 'eight', 'back', 'has', 'have', 'less', 'ourselves',
@@ -67,9 +71,9 @@ def pprint(collection):
     if isinstance(collection, dict):
         for line in collection.items():
             print(line)
-
-    for line in collection:
-        print(line)
+    else:
+        for line in collection:
+            print(line)
 
 
 def break_train_data_line(text):
@@ -139,8 +143,7 @@ def get_clean_text(text: str) -> str:
     remove stop words, pronouns, convert case
     :return:
     """
-    unigrams = text.split(" ")
-    return " ".join(word.strip().lower() for word in unigrams if word not in stop_words)
+
 
 
 def identify_negations(text):
@@ -170,13 +173,42 @@ def get_ngrams(text, n):
 def get_sentiment_word_features(text):
     """
     return words that are considered to be features
+    # no change with removing numeric characters
     """
-    return get_ngrams(get_clean_text(text), 1)
+    unigrams = text.split(" ")
+
+    bigrams = []
+    sentences = text.split(".")
+    for sent in sentences:
+        sent_unigrams = sent.split(" ")
+        for (u1, u2) in zip(sent_unigrams, sent_unigrams[1:]):
+            if u1 not in stop_words and u2 not in stop_words:
+                bigrams.append("{} {}".format(u1, u2))
+
+    stop_less = []
+    for word in unigrams:
+        if word.lower().strip() not in stop_words:
+            stop_less.append(word.lower())
+
+    stop_less = " ".join(stop_less)
+
+    return get_ngrams(stop_less, 1) + bigrams
 
 
 def get_authenticity_word_features(text):
-    return get_ngrams(get_clean_text(text), 1)
+    # using lower case decreases the f1 score
+    # no bigrams as well
 
+    unigrams = text.split(" ")
+    stop_less = []
+    for word in unigrams:
+        if word not in stop_words:
+            stop_less.append(word.lower())
+    stop_less = " ".join(stop_less)
+
+    # stop_less = " ".join(
+    #     word.strip().lower() for word in unigrams if word not in stop_words)
+    return get_ngrams(stop_less, 1)
 
 
 
@@ -262,9 +294,10 @@ class NaiveBayesModel:
             if confidence:
                 self.class_prior_prob[cls] = math.log10(confidence)
 
-    def compute_model(self):
+    def compute_model(self, frequency_threshold):
         # ToDo: number is hyperparam, test this out
         self.remove_top_words(0)
+        self.remove_low_frequent_words(frequency_threshold)
         self.add_one_smoothing()
         self.compute_feature_probabilities()
         self.compute_prior_probabilities()
@@ -281,7 +314,11 @@ class NaiveBayesModel:
                 if word in self.probabilities:
                     confidence += self.probabilities[word][index]
                 else:
-                    confidence += self.unknown_word_prob[cls]
+                    # add only unigram probability
+                    if len(word.split(" ")) == 1:
+                        confidence += self.unknown_word_prob[cls]
+                    else:
+                        confidence += 0
             class_confidence[cls] = confidence
         return class_confidence
 
@@ -311,6 +348,13 @@ class NaiveBayesModel:
         for (word, _) in top_words:
             del self.counter[word]
 
+    def remove_low_frequent_words(self, frequency):
+        words = list(self.counter.keys())
+        for key in words:
+            if sum(self.counter[key]) < frequency:
+                del self.counter[key]
+
+
 
 def store_models(filename: str, sent_model: NaiveBayesModel, auth_model: NaiveBayesModel):
     model = {"sent": sent_model.model_repr(), "auth": auth_model.model_repr()}
@@ -336,7 +380,10 @@ def build_model(train_data: List[Tuple[str, str]], classes: List[str], feature_f
         for (feature, freq) in features.items():
             model.add_feature(feature, freq, class_name)
         model.add_prior(class_name)
-    model.compute_model()
+    if classes == BINARY_SENT_CLASS_GROUP:
+        model.compute_model(3)
+    elif classes == BINARY_AUTH_CLASS_GROUP:
+        model.compute_model(0)
     return model
 
 
@@ -429,8 +476,8 @@ def get_performance_measure(prediction, dev_gold, cls):
     return precision, recall, f1
 
 
+
 if __name__ == '__main__':
     test_filename = sys.argv[1]
     sent_model, auth_model = read_models(nbmodel_filename)
     nb_test(test_filename, sent_model=sent_model, auth_model=auth_model, output_filename=output_filename)
-
