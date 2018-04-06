@@ -126,14 +126,6 @@ def write_predictions(predictions, filename):
         fp.write("\n".join(buffer))
 
 
-def get_clean_text(text: str) -> str:
-    """
-    remove stop words, pronouns, convert case
-    :return:
-    """
-
-
-
 def identify_negations(text):
     """
     identifies negations in text, replaces "not good" with "not_good"
@@ -150,7 +142,9 @@ def identify_negations(text):
             negation = not negation
         elif len(set(word).intersection(set(string.punctuation))) > 0:
             negation = False
-    return text + " ".join(words)
+    result = text + " ".join(words)
+    print(text)
+    print(result)
 
 
 def get_ngrams(text, n):
@@ -162,6 +156,9 @@ def get_sentiment_word_features(text):
     """
     return words that are considered to be features
     # no change with removing numeric characters
+
+    lower case 20 iter => 93.6
+    without lower case => 93.7
     """
     unigrams = text.split(" ")
 
@@ -180,6 +177,17 @@ def get_sentiment_word_features(text):
 
     stop_less = " ".join(stop_less)
 
+    negative_words = []
+    negation = False
+    for word in unigrams:
+        if negation:
+            negative_words.append("not_{}".format(word))
+        elif word.lower() in {"not", "n't"}:
+            negation = not negation
+        elif len(set(word).intersection(set(string.punctuation))) > 0:
+            negation = False
+    # print(negative_words)
+
     return get_ngrams(stop_less, 1) + bigrams
 
 
@@ -190,8 +198,8 @@ def get_authenticity_word_features(text):
     unigrams = text.split(" ")
     stop_less = []
     for word in unigrams:
-        if word not in stop_words:
-            stop_less.append(word.lower())
+        if word.lower().strip() not in stop_words:
+            stop_less.append(word.strip().lower())
     stop_less = " ".join(stop_less)
 
     # stop_less = " ".join(

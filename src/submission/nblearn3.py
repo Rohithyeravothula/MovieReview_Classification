@@ -4,7 +4,7 @@ import json
 import math
 from operator import add
 import sys
-
+import os
 
 """
 each classification will be of type
@@ -13,7 +13,6 @@ each classification will be of type
 BINARY_AUTH_CLASS_GROUP = ["True", "Fake"]
 BINARY_SENT_CLASS_GROUP = ["Pos", "Neg"]
 ASSIGNMENT_CLASSES = BINARY_AUTH_CLASS_GROUP + BINARY_SENT_CLASS_GROUP
-
 
 
 from typing import List, Dict, Set, Tuple
@@ -27,6 +26,8 @@ dev_data_key_filename = "../data/dev-key.txt"
 
 nbmodel_filename = "nbmodel.txt"
 output_filename = "nboutput.txt"
+
+full_filename = "../data/full_data.txt"
 
 
 punctuations = set(string.punctuation)
@@ -65,6 +66,10 @@ stop_words = {'i', 'or', 'besides', 'six', 'whom', 'either', 'being', 'when', 'a
               'quite', 'thereby', 'whereupon', 'many', 'almost', 'except', 'hundred', 'nowhere',
               'whereas', 'none', 'with', 'across', 'which', 'those', 'towards', 'how', 'side',
               'he', 'were', 'its', 'formerly', 'now', 'through'}
+
+
+# stop_words = set(['a', 'able', 'about', 'above', 'across', 'again', "ain't", 'all', 'almost', 'along', 'also', 'am', 'among', 'amongst', 'an', 'and', 'anyhow', 'anyone', 'anyway', 'anyways', 'appear', 'are', 'around', 'as', "a's", 'aside', 'ask', 'asking', 'at', 'away', 'be', 'became', 'because', 'become', 'becomes', 'becoming', 'been', 'before', 'behind', 'below', 'beside', 'besides', 'between', 'beyond', 'both', 'brief', 'but', 'by', 'came', 'can', 'come', 'comes', 'consider', 'considering', 'corresponding', 'could', 'do', 'does', 'doing', 'done', 'down', 'downwards', 'during', 'each', 'edu', 'eg', 'eight', 'either', 'else', 'elsewhere', 'etc', 'even', 'ever', 'every', 'ex', 'few', 'followed', 'following', 'follows', 'for', 'former', 'formerly', 'from', 'further', 'furthermore', 'get', 'gets', 'getting', 'given', 'gives', 'go', 'goes', 'going', 'gone', 'got', 'gotten', 'happens', 'has', 'have', 'having', 'he', 'hed', 'hence', 'her', 'here', 'hereafter', 'hereby', 'herein', "here's", 'hereupon', 'hers', 'herself', "he's", 'hi', 'him', 'himself', 'his', 'how', 'hows', 'i', "i'd", 'ie', 'if', "i'll", "i'm", 'in', 'inc', 'indeed', 'into', 'inward', 'is', 'it', "it'd", "it'll", 'its', "it's", 'itself', "i've", 'keep', 'keeps', 'kept', 'know', 'known', 'knows', 'lately', 'later', 'latter', 'latterly', 'lest', 'let', "let's", 'looking', 'looks', 'ltd', 'may', 'maybe', 'me', 'mean', 'meanwhile', 'might', 'most', 'my', 'myself', 'name', 'namely', 'nd', 'near', 'nearly', 'need', 'needs', 'neither', 'next', 'nine', 'no', 'non', 'now', 'nowhere', 'of', 'off', 'often', 'oh', 'ok', 'okay', 'old', 'on', 'once', 'one', 'ones', 'only', 'onto', 'or', 'other', 'others', 'ought', 'our', 'ours', 'ourselves', 'out', 'over', 'own', 'per', 'placed', 'que', 'quite', 're', 'regarding', 'said', 'same', 'saw', 'say', 'saying', 'says', 'second', 'secondly', 'see', 'seeing', 'seem', 'seemed', 'seeming', 'seems', 'seen', 'self', 'selves', 'sensible', 'sent', 'seven', 'several', 'she', "she'd", "she'll", "she's", 'since', 'six', 'so', 'some', 'somebody', 'somehow', 'someone', 'something', 'sometime', 'sometimes', 'somewhat', 'somewhere', 'soon', 'specified', 'specify', 'specifying', 'still', 'sub', 'such', 'sup', 'sure', 'take', 'taken', 'tell', 'tends', 'th', 'than', 'that', 'thats', "that's", 'the', 'their', 'theirs', 'them', 'themselves', 'then', 'thence', 'there', 'thereafter', 'thereby', 'therefore', 'therein', 'theres', "there's", 'thereupon', 'these', 'they', "they'd", "they'll", "they're", "they've", 'think', 'third', 'this', 'those', 'though', 'three', 'through', 'thru', 'thus', 'to', 'together', 'too', 'took', 'toward', 'towards', 'tried', 'tries', 'truly', 'try', 'trying', "t's", 'twice', 'two', 'un', 'under', 'up', 'upon', 'us', 'use', 'used', 'uses', 'using', 'usually', 'value', 'various', 'very', 'via', 'viz', 'vs', 'want', 'wants', 'was', "wasn't", 'way', 'we', "we'd", "we'll", 'went', 'were', "we're", "weren't", "we've", 'what', 'whatever', "what's", 'when', 'whence', 'whenever', "when's", 'where', 'whereafter', 'whereas', 'whereby', 'wherein', "where's", 'whereupon', 'wherever', 'whether', 'which', 'while', 'whither', 'who', 'whoever', 'whole', 'whom', "who's", 'whose', 'why', "why's", 'will', 'willing', 'wish', 'with', 'within', 'without', "won't", 'would', "wouldn't", 'yes', 'yet', 'you', "you'd", "you'll", 'your', "you're", 'yours', 'yourself', 'yourselves', "you've"])
+
 
 
 def pprint(collection):
@@ -138,14 +143,6 @@ def write_predictions(predictions, filename):
         fp.write("\n".join(buffer))
 
 
-def get_clean_text(text: str) -> str:
-    """
-    remove stop words, pronouns, convert case
-    :return:
-    """
-
-
-
 def identify_negations(text):
     """
     identifies negations in text, replaces "not good" with "not_good"
@@ -162,7 +159,9 @@ def identify_negations(text):
             negation = not negation
         elif len(set(word).intersection(set(string.punctuation))) > 0:
             negation = False
-    return text + " ".join(words)
+    result = text + " ".join(words)
+    print(text)
+    print(result)
 
 
 def get_ngrams(text, n):
@@ -174,6 +173,9 @@ def get_sentiment_word_features(text):
     """
     return words that are considered to be features
     # no change with removing numeric characters
+
+    lower case 20 iter => 93.6
+    without lower case => 93.7
     """
     unigrams = text.split(" ")
 
@@ -192,6 +194,17 @@ def get_sentiment_word_features(text):
 
     stop_less = " ".join(stop_less)
 
+    negative_words = []
+    negation = False
+    for word in unigrams:
+        if negation:
+            negative_words.append("not_{}".format(word))
+        elif word.lower() in {"not", "n't"}:
+            negation = not negation
+        elif len(set(word).intersection(set(string.punctuation))) > 0:
+            negation = False
+    # print(negative_words)
+
     return get_ngrams(stop_less, 1) + bigrams
 
 
@@ -202,8 +215,8 @@ def get_authenticity_word_features(text):
     unigrams = text.split(" ")
     stop_less = []
     for word in unigrams:
-        if word not in stop_words:
-            stop_less.append(word.lower())
+        if word.lower().strip() not in stop_words:
+            stop_less.append(word.strip().lower())
     stop_less = " ".join(stop_less)
 
     # stop_less = " ".join(
@@ -315,7 +328,7 @@ class NaiveBayesModel:
                     confidence += self.probabilities[word][index]
                 else:
                     # add only unigram probability
-                    if len(word.split(" ")) == 1:
+                    if not self.is_bigram(word):
                         confidence += self.unknown_word_prob[cls]
                     else:
                         confidence += 0
@@ -354,6 +367,11 @@ class NaiveBayesModel:
             if sum(self.counter[key]) < frequency:
                 del self.counter[key]
 
+    def is_bigram(self, word):
+        if len(word.split(" ")) > 1 or len(word.split("_")) > 1:
+            return True
+        return False
+
 
 
 def store_models(filename: str, sent_model: NaiveBayesModel, auth_model: NaiveBayesModel):
@@ -387,13 +405,16 @@ def build_model(train_data: List[Tuple[str, str]], classes: List[str], feature_f
     return model
 
 
-def nb_learn(train_data_file: str):
-    train_data = read_train_data(train_data_file)
+def nb_learn_data(train_data):
     train_sentiment = [(review_text, sent) for (_, review_text, _, sent) in train_data]
     train_auth = [(review_text, auth) for (_, review_text, auth, _) in train_data]
     sent_model = build_model(train_sentiment, BINARY_SENT_CLASS_GROUP, get_sentiment_word_features)
     auth_model = build_model(train_auth, BINARY_AUTH_CLASS_GROUP, get_authenticity_word_features)
     return sent_model, auth_model
+
+def nb_learn(train_data_file: str):
+    train_data = read_train_data(train_data_file)
+    return nb_learn_data(train_data)
 
 
 def nb_predict(model: NaiveBayesModel, input_text: str, feature_function):
@@ -418,44 +439,56 @@ def get_prediction(cls_confidence, input_classes):
     return input_classes[0]
 
 
-def nb_dev_test_sentiment(model: NaiveBayesModel):
-    dev_data = read_dev_data(dev_data_filename)
-    dev_key = read_dev_key_data(dev_data_key_filename)
+def nb_dev_test_sentiment_data(model: NaiveBayesModel, dev_data, dev_key):
     prediction = []
     gold = []
     for (review_id, review_text) in dev_data:
         sent_class = nb_predict_sentiment(model, review_text)
         prediction.append(sent_class)
         gold.append(dev_key[review_id][1])
-    print(prediction)
-    print(gold)
-    print(get_performance_measure(prediction, gold, "Pos"))
-    print(get_performance_measure(prediction, gold, "Neg"))
+    # print(prediction)
+    # print(gold)
+    # print(get_performance_measure(prediction, gold, "Pos"))
+    # print(get_performance_measure(prediction, gold, "Neg"))
+    return get_performance_measure(prediction, gold, "Pos"), get_performance_measure(prediction, gold, "Neg")
 
 
-def nb_dev_test_authenticity(model: NaiveBayesModel):
+def nb_dev_test_sentiment(model: NaiveBayesModel):
     dev_data = read_dev_data(dev_data_filename)
     dev_key = read_dev_key_data(dev_data_key_filename)
+    return nb_dev_test_sentiment_data(model, dev_data, dev_key)
+
+
+def nb_dev_test_authenticity_data(model: NaiveBayesModel, dev_data, dev_key):
     prediction = []
     gold = []
     for (review_id, review_text) in dev_data:
         auth_class = nb_predict_authenticity(model, review_text)
         prediction.append(auth_class)
         gold.append(dev_key[review_id][0])
-    print(prediction)
-    print(gold)
-    print(get_performance_measure(prediction, gold, "True"))
-    print(get_performance_measure(prediction, gold, "Fake"))
+    # print(prediction)
+    # print(gold)
+    # print(get_performance_measure(prediction, gold, "True"))
+    # print(get_performance_measure(prediction, gold, "Fake"))
+    return get_performance_measure(prediction, gold, "True"), get_performance_measure(prediction, gold, "Fake")
 
 
-def nb_test(filename: str, sent_model: NaiveBayesModel, auth_model: NaiveBayesModel, output_filename: str):
-    test_data = read_test_data(filename)
+def nb_dev_test_authenticity(model: NaiveBayesModel):
+    dev_data = read_dev_data(dev_data_filename)
+    dev_key = read_dev_key_data(dev_data_key_filename)
+    return nb_dev_test_authenticity_data(model, dev_data, dev_key)
+
+def nb_test_data(test_data, sent_model: NaiveBayesModel, auth_model: NaiveBayesModel, output_filename: str):
     predictions = []
     for (review_id, review_text) in test_data:
         sent_class = nb_predict_sentiment(sent_model, review_text)
         auth_class = nb_predict_authenticity(auth_model, review_text)
         predictions.append((review_id, auth_class, sent_class))
     write_predictions(predictions, output_filename)
+
+def nb_test(filename: str, sent_model: NaiveBayesModel, auth_model: NaiveBayesModel, output_filename: str):
+    test_data = read_test_data(filename)
+    nb_test_data(test_data, sent_model, auth_model, output_filename)
 
 
 def get_performance_measure(prediction, dev_gold, cls):
@@ -469,16 +502,15 @@ def get_performance_measure(prediction, dev_gold, cls):
         if pred==cls and pred == gold:
             true_positive+=1
     pos_cls_pred = max(1, pos_cls_pred)
-    print(cls, true_positive, pos_cls_pred, pos_cls_gold)
+    # print(cls, true_positive, pos_cls_pred, pos_cls_gold)
     precision = true_positive/pos_cls_pred
     recall = true_positive/pos_cls_gold
     f1 = 2/((1/precision) + (1/recall))
     return precision, recall, f1
 
 
-
 if __name__ == '__main__':
-    import os
     train_filename = sys.argv[1]
     sent_model, auth_model = nb_learn(train_filename)
     store_models(os.path.join(os.getcwd(), nbmodel_filename), sent_model=sent_model, auth_model=auth_model)
+

@@ -119,7 +119,7 @@ class NaiveBayesModel:
                     confidence += self.probabilities[word][index]
                 else:
                     # add only unigram probability
-                    if len(word.split(" ")) == 1:
+                    if not self.is_bigram(word):
                         confidence += self.unknown_word_prob[cls]
                     else:
                         confidence += 0
@@ -157,6 +157,11 @@ class NaiveBayesModel:
         for key in words:
             if sum(self.counter[key]) < frequency:
                 del self.counter[key]
+
+    def is_bigram(self, word):
+        if len(word.split(" ")) > 1 or len(word.split("_")) > 1:
+            return True
+        return False
 
 
 

@@ -25,7 +25,7 @@ def dev_auth():
 
 def dev_sentiment():
     sent_model, auth_model = read_models(nbmodel_filename)
-    nb_dev_test_sentiment(sent_model)
+    print(nb_dev_test_sentiment(sent_model))
 
 
 def test_nb_test():
@@ -45,8 +45,9 @@ if __name__ == '__main__':
     dev_learn()
     # dev_sentiment()
     # dev_auth()
-    dev_test()
-    # nb_test()
+    # dev_test()
+    sent_model, auth_model = read_models(nbmodel_filename)
+    nb_test(dev_data_filename, sent_model, auth_model, output_filename)
     # dev_test_autheiticity()
     # dev_test_sentiment()
 

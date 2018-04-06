@@ -32,4 +32,5 @@ Neg 153 162 160
 
 
 
-/home/ccc_v1_w_Yzgy_113923/asn26450_2/asn26451_1/resource/scripts
+
+without bigrams:
